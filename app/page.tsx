@@ -1,7 +1,7 @@
 "use client";
 import { useMutation } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { useState } from "react";
+import { Chat } from "./components/Chat";
 
 export default function Home() {
 	const [file, setFile] = useState<File | null>(null);
@@ -51,19 +51,20 @@ export default function Home() {
 	};
 
 	return (
-		<main className="container mx-auto ">
-			<div className="min-h-dvh bg-violet-100 p-5 shadow-lg shadow-violet-500/50 border-r border-l border-violet-200 flex flex-col gap-5">
-				<form onSubmit={handleSubmit} className="flex gap-2">
-					<label className="block">
-						<span className="block text-sm font-medium text-slate-700 mb-2">
-							Select Audio
-						</span>
+		<main className="grid grid-rows-[max-content_1fr] gap-5 p-5 h-screen">
+			{/* <h4 className="font-sans text-2xl mt-4 text-center text-violet-500 font-bold">
+				Simple Audio Transcriber
+			</h4> */}
+
+			<div className="flex justify-between align-top">
+				<form onSubmit={handleSubmit} className="flex h-10 align-middle">
+					<label className="flex gap-2 align-middle">
 						<input
 							type="file"
 							accept="audio/*"
 							onChange={handleFileChange}
 							placeholder="audio"
-							className="block w-full text-sm text-slate-500
+							className="text-sm text-slate-500
                 file:mr-4 file:py-2 file:px-4
                 file:rounded-full file:border-0
                 file:text-sm file:font-semibold
@@ -81,142 +82,19 @@ export default function Home() {
 					</button>
 				</form>
 
-				<div className="min-h-full rounded-md grid grid-cols-2 gap-5">
-					<div className="min-h-full bg-gray-50 p-4 rounded shadow-md border">
-						<p className="font-bold mb-2">Transcription:</p>
-						<p className="text-sm">{transcription}</p>
-					</div>
-
-					<Chat transcriptions={transcription} />
+				<div className="font-sans text-2xl text-center text-violet-500 font-bold">
+					Simple Audio Transcriber
 				</div>
 			</div>
-		</main>
-	);
-}
 
-type Conversation = {
-	role: string;
-	content: string;
-	id: string;
-	isContext?: boolean;
-};
-
-function Chat({ transcriptions }: { transcriptions: string | undefined }) {
-	const [conversation, setConversation] = useState<Conversation[]>([]);
-	const [message, setMessage] = useState("");
-
-	const { mutateAsync, isPending } = useMutation({
-		mutationFn: async (body: string) => {
-			try {
-				const res = await fetch("/api/chat", {
-					method: "POST",
-					body: JSON.stringify([
-						...conversation,
-						{ role: "user", content: body },
-					]),
-				});
-
-				const reader = res.body?.getReader();
-				if (!reader) {
-					throw new Error("Failed to get reader from response body");
-				}
-
-				const decoder = new TextDecoder("utf-8");
-
-				let chatResponse = "";
-				let done = false;
-
-				const id = uuidv4();
-
-				setConversation((prev) => [
-					...prev,
-					{ id, role: "assistant", content: chatResponse },
-				]);
-
-				while (!done) {
-					const { value, done: readerDone } = await reader.read();
-					done = readerDone;
-					const chunk = decoder.decode(value, { stream: !readerDone });
-					const lines = chunk.split("\n");
-					for (const line of lines) {
-						if (line.trim()) {
-							try {
-								const parsed = JSON.parse(line);
-								const content = parsed.choices[0]?.delta?.content;
-								if (content) {
-									chatResponse += content;
-
-									setConversation((prev) => {
-										const currentConversation = prev.map((item) => {
-											if (item.id === id) {
-												return { ...item, content: chatResponse };
-											}
-
-											return item;
-										});
-
-										return currentConversation;
-									});
-								}
-							} catch (error) {
-								console.error("Error parsing line", error);
-							}
-						}
-					}
-				}
-
-				return chatResponse;
-			} catch (error) {
-				console.error(error);
-				throw error;
-			}
-		},
-	});
-
-	const contextMessage = useMemo(() => {
-		return `You are an experienced nurse. I will provide you with a transcriptions, and I need your assistance in analyzing it. Please hold off on responding until I give you further instructions.
-    Here is the data you will be analyzing:
-		
-    \`\`\`
-    ${transcriptions}
-    \`\`\``;
-	}, [transcriptions]);
-
-	return (
-		<div className="min-h-full bg-gray-50 p-4 rounded shadow-md border flex flex-col gap-2">
-			{!transcriptions ? (
-				<span className="text-violet-500">Missing transcription</span>
-			) : (
-				<form className="flex gap-3">
-					<textarea
-						name="message"
-						placeholder="Ask any question..."
-						className="w-full border p-2 rounded-md"
-						onChange={(e) => setMessage(e.target.value)}
-					/>
-
-					<button
-						type="submit"
-						className="bg-violet-700 text-white rounded disabled:bg-violet-300 p-2 w-20"
-						disabled={isPending || !message}
-						onClick={async (e) => {
-							e.preventDefault();
-							await mutateAsync(message);
-						}}
-					>
-						Ask
-					</button>
-				</form>
-			)}
-
-			{conversation.map((item) => (
-				<div
-					key={item.id}
-					className={`p-2 ${item.role === "assistant" ? "bg-violet-100" : "bg-gray-100"} rounded-md`}
-				>
-					<p className="text-sm">{item.content}</p>
+			<div className={`grid ${transcription && "grid-cols-2"} gap-5 h-[90vh]`}>
+				<div className="bg-gray-50 p-4 rounded shadow-md border overflow-auto border-violet-300">
+					<p className="font-bold mb-2">Transcription:</p>
+					<div className="text-sm overflow-auto">{transcription}</div>
 				</div>
-			))}
-		</div>
+
+				{transcription && <Chat transcriptions={transcription} />}
+			</div>
+		</main>
 	);
 }

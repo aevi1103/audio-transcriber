@@ -1,26 +1,17 @@
-import openai from "@/app/lib/openai";
-import { NextResponse } from "next/server";
+import { openai } from "@ai-sdk/openai";
+import { convertToCoreMessages, streamText } from "ai";
+
+// Allow streaming responses up to 30 seconds
+export const maxDuration = 30;
 
 export async function POST(req: Request) {
-	const body = await req.json();
+	const { messages } = await req.json();
 
-	const stream = openai.beta.chat.completions.stream({
-		model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-		stream: true,
-		messages: [
-			{
-				role: "system",
-				content: "You are a helpful assistant.",
-			},
-			...body,
-		],
+	const result = await streamText({
+		model: openai(process.env.OPENAI_MODEL || "gpt-4o-mini"),
+		system: "You are a helpful assistant.",
+		messages: convertToCoreMessages(messages),
 	});
 
-	const readableStream = stream.toReadableStream();
-
-	return NextResponse.json(readableStream, {
-		headers: {
-			"Content-Type": "application/json",
-		},
-	});
+	return result.toDataStreamResponse();
 }
