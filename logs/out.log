@@ -1,0 +1,42 @@
+2024-08-30 23:08 -04:00: 
+2024-08-30 23:08 -04:00: > audio-transcriber@0.1.0 start-pm2
+2024-08-30 23:08 -04:00: > npm run build && next start -p 3002
+2024-08-30 23:08 -04:00: 
+2024-08-30 23:08 -04:00: 
+2024-08-30 23:08 -04:00: > audio-transcriber@0.1.0 build
+2024-08-30 23:08 -04:00: > next build
+2024-08-30 23:08 -04:00: 
+2024-08-30 23:08 -04:00:   ▲ Next.js 14.2.7
+2024-08-30 23:08 -04:00:   - Environments: .env.local
+2024-08-30 23:08 -04:00: 
+2024-08-30 23:08 -04:00:    Creating an optimized production build ...
+2024-08-30 23:08 -04:00:  ✓ Compiled successfully
+2024-08-30 23:08 -04:00:    Linting and checking validity of types ...
+2024-08-30 23:08 -04:00:    Collecting page data ...
+2024-08-30 23:08 -04:00:    Generating static pages (0/7) ...
+2024-08-30 23:08 -04:00:    Generating static pages (1/7) 
+2024-08-30 23:08 -04:00:    Generating static pages (3/7) 
+2024-08-30 23:08 -04:00:    Generating static pages (5/7) 
+2024-08-30 23:08 -04:00:  ✓ Generating static pages (7/7)
+2024-08-30 23:08 -04:00:    Finalizing page optimization ...
+2024-08-30 23:08 -04:00:    Collecting build traces ...
+2024-08-30 23:08 -04:00: 
+2024-08-30 23:08 -04:00: Route (app)                              Size     First Load JS
+2024-08-30 23:08 -04:00: ┌ ○ /                                    116 kB          207 kB
+2024-08-30 23:08 -04:00: ├ ○ /_not-found                          875 B            88 kB
+2024-08-30 23:08 -04:00: ├ ƒ /api/chat                            0 B                0 B
+2024-08-30 23:08 -04:00: └ ƒ /api/transcribe                      0 B                0 B
+2024-08-30 23:08 -04:00: + First Load JS shared by all            87.1 kB
+2024-08-30 23:08 -04:00:   ├ chunks/23-76772c4d888e1562.js        31.6 kB
+2024-08-30 23:08 -04:00:   ├ chunks/fd9d1056-aa1b1ef53045e603.js  53.7 kB
+2024-08-30 23:08 -04:00:   └ other shared chunks (total)          1.91 kB
+2024-08-30 23:08 -04:00: 
+2024-08-30 23:08 -04:00: 
+2024-08-30 23:08 -04:00: ○  (Static)   prerendered as static content
+2024-08-30 23:08 -04:00: ƒ  (Dynamic)  server-rendered on demand
+2024-08-30 23:08 -04:00: 
+2024-08-30 23:08 -04:00:   ▲ Next.js 14.2.7
+2024-08-30 23:08 -04:00:   - Local:        http://localhost:3002
+2024-08-30 23:08 -04:00: 
+2024-08-30 23:08 -04:00:  ✓ Starting...
+2024-08-30 23:08 -04:00:  ✓ Ready in 156ms
