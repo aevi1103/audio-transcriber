@@ -1,5 +1,9 @@
 #!/bin/bash
 
+git pull main
+
+npm i
+
 # Build the Next.js application
 npm run build
 
