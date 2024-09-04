@@ -7,7 +7,7 @@ import { set } from "zod";
 export default function Home() {
 	const [file, setFile] = useState<File | null>(null);
 	const [segments, setSegments] = useState<Array<{ segment: string; text: string }>>([]);
-
+	const [isTranscribingComplete, setIsTranscribingComplete] = useState(false);
 
 	const { mutateAsync: splitThenTranscribeAudio, isPending: scriptThenTranscribeAudioLoading } = useMutation({
 		mutationFn: async (formData: FormData) => {
@@ -25,6 +25,8 @@ export default function Home() {
 				const decoder = new TextDecoder("utf-8");
 				let segmentsData: Array<{ segment: string; text: string }> = [];
 
+				setIsTranscribingComplete(false);
+
 				while (reader) {
 					const { done, value } = await reader.read();
 					if (done) break;
@@ -37,6 +39,7 @@ export default function Home() {
 
 				}
 
+				setIsTranscribingComplete(true);
 				console.log("Final transcription segments:", segmentsData);
 			} catch (error) {
 				console.error(error);
@@ -71,6 +74,8 @@ export default function Home() {
 	}, [segments]);
 
 	const transcription = useMemo(() => {
+
+
 		return segments.map((segment) => segment.text).join(" ");
 	}, [segments]);
 
@@ -107,8 +112,6 @@ export default function Home() {
 						/>
 					</label>
 
-
-
 					<button
 						type="submit"
 						disabled={!file || scriptThenTranscribeAudioLoading}
@@ -128,13 +131,13 @@ export default function Home() {
 				</div>
 			</div>
 
-			<div className={`grid ${transcription && "grid-cols-2"} gap-5 h-[90vh]`}>
+			<div className={`grid ${transcription && isTranscribingComplete && "grid-cols-2"} gap-5 h-[90vh]`}>
 				<div className="bg-gray-50 p-4 rounded shadow-md border overflow-auto border-violet-300">
 					<p className="font-bold mb-2">Transcription:</p>
 					<div className="text-sm overflow-auto">{transcription}</div>
 				</div>
 
-				{transcription && <Chat transcriptions={transcription} />}
+				{transcription && isTranscribingComplete && <Chat transcriptions={transcription} />}
 			</div>
 		</main>
 	);
