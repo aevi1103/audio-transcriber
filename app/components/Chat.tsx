@@ -1,4 +1,6 @@
+import { richTextFromMarkdown } from "@contentful/rich-text-from-markdown";
 import { useChat } from "ai/react";
+
 import { useCallback, useEffect, useRef } from "react";
 import { FaCopy } from "react-icons/fa";
 import { useToast } from "../hooks/useToast";
@@ -36,9 +38,26 @@ export function Chat({
 		scrollToBottom();
 	}, [messages, scrollToBottom]);
 
-	const handleCopyToClipboard = (text: string) => {
-		if (text) {
-			navigator.clipboard.writeText(text).then(() => {
+	const handleCopyToClipboard = async (markdownText: string) => {
+		if (markdownText) {
+			const document = await richTextFromMarkdown(markdownText); // Convert markdown to plain text
+
+			// Function to extract plain text from rich text document
+			const extractPlainText = (node: any): string => {
+				let text = "";
+				if (node.nodeType === "text") {
+					text += node.value;
+				} else if (node.content) {
+					for (const childNode of node.content) {
+						text += extractPlainText(childNode);
+					}
+				}
+				return text;
+			};
+
+			const plainText = extractPlainText(document);
+
+			navigator.clipboard.writeText(plainText).then(() => {
 				addToast("success", "Copied to clipboard");
 			});
 		}
