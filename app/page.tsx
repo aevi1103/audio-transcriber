@@ -1,15 +1,18 @@
 "use client";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Chat } from "./components/Chat";
+import { set } from "zod";
 
 export default function Home() {
 	const [file, setFile] = useState<File | null>(null);
+	const [segments, setSegments] = useState<Array<{ segment: string; text: string }>>([]);
+
 
 	const {
 		mutateAsync,
 		isPending,
-		data: transcription,
+		data: transcriptionWhisper,
 	} = useMutation({
 		mutationFn: async (formData: FormData) => {
 			try {
@@ -31,13 +34,71 @@ export default function Home() {
 		},
 	});
 
+	const { mutateAsync: splitAudio, isPending: splitAudioLoading } = useMutation({
+		mutationFn: async (formData: FormData) => {
+			try {
+				const response = await fetch("/api/split-audio", {
+					method: "POST",
+					body: formData,
+				});
+
+				if (!response.ok) {
+					throw new Error("Failed to transcribe audio");
+				}
+
+				const data = await response.json();
+				return data;
+			} catch (error) {
+				console.error(error);
+				throw error;
+			}
+		},
+	});
+
+	const { mutateAsync: splitThenTranscribeAudio, isPending: scriptThenTranscribeAudioLoading } = useMutation({
+		mutationFn: async (formData: FormData) => {
+			try {
+				const response = await fetch("/api/transcribe-stream", {
+					method: "POST",
+					body: formData,
+				});
+
+				if (!response.ok) {
+					throw new Error("Failed to transcribe audio");
+				}
+
+				const reader = response.body?.getReader();
+				const decoder = new TextDecoder("utf-8");
+				let segmentsData: Array<{ segment: string; text: string }> = [];
+
+				while (reader) {
+					const { done, value } = await reader.read();
+					if (done) break;
+
+					const chunk = decoder.decode(value, { stream: true });
+					const parsedChunk = JSON.parse(chunk);
+
+					segmentsData.push(parsedChunk);
+					setSegments([...segmentsData]); // Update state with new segments
+		
+				}
+
+				console.log("Final transcription segments:", segmentsData);
+			} catch (error) {
+				console.error(error);
+				throw error;
+			}
+		}
+	});
+
+
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && e.target.files.length > 0) {
 			setFile(e.target.files[0]);
 		}
 	};
 
-	const handleSubmit = async (e: React.FormEvent) => {
+	const handleSubmitTranscribe = async (e: React.FormEvent) => {
 		e.preventDefault();
 
 		if (!file) {
@@ -47,8 +108,47 @@ export default function Home() {
 
 		const formData = new FormData();
 		formData.append("file", file);
+
 		await mutateAsync(formData);
 	};
+
+	const handleSubmitSplitAudio = async (e: React.FormEvent) => {
+		e.preventDefault();
+
+		if (!file) {
+			alert("Please select a file first!");
+			return;
+		}
+
+		const formData = new FormData();
+		formData.append("file", file);
+
+		const audioPaths = await splitAudio(formData);
+		console.log({ audioPaths });
+
+	};
+
+	const handleSubmitSplitThenTranscribeAudio = async (e: React.FormEvent) => {
+		e.preventDefault();
+
+		if (!file) {
+			alert("Please select a file first!");
+			return;
+		}
+
+		const formData = new FormData();
+		formData.append("file", file);
+
+		await splitThenTranscribeAudio(formData);
+	};
+
+	useEffect(() => {
+		console.log({ segments });
+	 }, [segments]);
+
+	const transcription = useMemo(() => { 
+		return segments.map((segment) => segment.text).join(" ");
+	}, [segments]);
 
 	return (
 		<main className="grid grid-rows-[max-content_1fr] gap-5 p-5 h-screen">
@@ -57,7 +157,7 @@ export default function Home() {
 			</h4> */}
 
 			<div className="flex justify-between align-top">
-				<form onSubmit={handleSubmit} className="flex h-10 align-middle">
+				<form onSubmit={handleSubmitTranscribe} className="flex h-10 align-middle">
 					<label className="flex gap-2 align-middle">
 						<input
 							type="file"
@@ -73,13 +173,33 @@ export default function Home() {
               "
 						/>
 					</label>
-					<button
+
+					{/* <button
 						type="submit"
 						disabled={!file || isPending}
-						className="px-2 bg-violet-700 text-white rounded disabled:bg-violet-300"
+						className="px-2 bg-violet-700 text-white rounded disabled:bg-violet-300 mr-2"
 					>
 						{isPending ? "Transcribing..." : "Transcribe"}
 					</button>
+
+					<button
+						onClick={handleSubmitSplitAudio}
+						disabled={!file || splitAudioLoading}
+						className="px-2 bg-blue-700 text-white rounded disabled:bg-blue-300 mr-2"
+					>
+						{splitAudioLoading ? "Splitting..." : "Split Audio"}
+					</button> */}
+
+					<button
+						type="submit"
+						onClick={handleSubmitSplitThenTranscribeAudio}
+						disabled={!file || scriptThenTranscribeAudioLoading}
+						className="px-2 bg-violet-700 text-white rounded disabled:bg-violet-300 "
+					>
+						{scriptThenTranscribeAudioLoading ? "Transcribing..." : "Transcribe"}
+					</button>
+
+					
 				</form>
 
 				<div className="font-sans text-2xl text-center text-violet-500 font-bold">

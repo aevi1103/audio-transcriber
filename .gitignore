@@ -40,3 +40,6 @@ next-env.d.ts
 /logs/*
 
 ecosystem.config.js
+
+/public/input/*
+/public/output/*
