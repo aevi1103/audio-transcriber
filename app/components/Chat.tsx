@@ -40,24 +40,24 @@ export function Chat({
 
 	const handleCopyToClipboard = async (markdownText: string) => {
 		if (markdownText) {
-			const document = await richTextFromMarkdown(markdownText); // Convert markdown to plain text
+			// const document = await richTextFromMarkdown(markdownText); // Convert markdown to plain text
 
 			// Function to extract plain text from rich text document
-			const extractPlainText = (node: any): string => {
-				let text = "";
-				if (node.nodeType === "text") {
-					text += node.value;
-				} else if (node.content) {
-					for (const childNode of node.content) {
-						text += extractPlainText(childNode);
-					}
-				}
-				return text;
-			};
+			// const extractPlainText = (node: any): string => {
+			// 	let text = "";
+			// 	if (node.nodeType === "text") {
+			// 		text += node.value;
+			// 	} else if (node.content) {
+			// 		for (const childNode of node.content) {
+			// 			text += extractPlainText(childNode);
+			// 		}
+			// 	}
+			// 	return text;
+			// };
 
-			const plainText = extractPlainText(document);
+			// const plainText = extractPlainText(document);
 
-			navigator.clipboard.writeText(plainText).then(() => {
+			navigator.clipboard.writeText(markdownText).then(() => {
 				addToast("success", "Copied to clipboard");
 			});
 		}
