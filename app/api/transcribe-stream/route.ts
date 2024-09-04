@@ -1,152 +1,187 @@
 import fs from "node:fs";
 import path from "node:path";
+import openai from "@/app/lib/openai";
 import ffmpeg from "fluent-ffmpeg";
 import { NextResponse } from "next/server";
 import { v4 as uuidV4 } from "uuid";
-import openai from "@/app/lib/openai";
 
 export async function POST(req: Request) {
-  try {
-    const data = await req.formData();
-    const file = data.get("file") as Blob | null;
+	try {
+		// Delete all files in the output folder at the start
+		const outputDirInit = path.join(process.cwd(), "public", "output");
+		if (fs.existsSync(outputDirInit)) {
+			const files = fs.readdirSync(outputDirInit);
+			for (const file of files) {
+				fs.unlinkSync(path.join(outputDirInit, file));
+			}
+		}
 
-    if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
-    }
+		const data = await req.formData();
+		const file = data.get("file") as Blob | null;
 
-    const fileName = file instanceof File ? file.name : "audio";
-    const fileExtension = fileName.split(".").pop() || "mp3"; // Default to mp3 if no extension
-    const fileNameOnly = fileName.replace(/\.[^/.]+$/, "");
-    const mimeType = file.type || `audio/${fileExtension}`;
+		if (!file) {
+			return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+		}
 
-    // Convert Blob to buffer
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
+		const fileName = file instanceof File ? file.name : "audio";
+		const fileExtension = fileName.split(".").pop() || "mp3"; // Default to mp3 if no extension
+		const fileNameOnly = fileName.replace(/\.[^/.]+$/, "");
+		const mimeType = file.type || `audio/${fileExtension}`;
 
-    // Define the directory path and ensure it exists
-    const inputDirectoryPath = path.join(process.cwd(), "public", "input");
-    if (!fs.existsSync(inputDirectoryPath)) {
-      fs.mkdirSync(inputDirectoryPath, { recursive: true });
-    }
+		// Convert Blob to buffer
+		const fileBuffer = Buffer.from(await file.arrayBuffer());
 
-    const id = uuidV4();
-    const newFileName = `${fileNameOnly}_${id}`;
+		// Define the directory path and ensure it exists
+		const inputDirectoryPath = path.join(process.cwd(), "public", "input");
+		if (!fs.existsSync(inputDirectoryPath)) {
+			fs.mkdirSync(inputDirectoryPath, { recursive: true });
+		}
 
-    // Define the file path
-    const inputTempFilePath = path.join(
-      inputDirectoryPath,
-      `${newFileName}.${fileExtension}`
-    );
+		const id = uuidV4();
+		const newFileName = `${fileNameOnly}_${id}`;
 
-    // Write the file
-    await fs.promises.writeFile(inputTempFilePath, fileBuffer);
+		// Define the file path
+		const inputTempFilePath = path.join(
+			inputDirectoryPath,
+			`${newFileName}.${fileExtension}`,
+		);
 
-    // Get the duration of the audio file in seconds
-    const durationSeconds = await new Promise<number>((resolve, reject) => {
-      ffmpeg.ffprobe(inputTempFilePath, (err, metadata) => {
-        if (err) return reject(err);
-        resolve(metadata.format.duration || 0);
-      });
-    });
+		// Write the file
+		await fs.promises.writeFile(inputTempFilePath, fileBuffer);
 
-    // Define paths for processing
-    const outputDir = path.join(process.cwd(), "public", "output");
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
+		// Get the duration of the audio file in seconds
+		const durationSeconds = await new Promise<number>((resolve, reject) => {
+			ffmpeg.ffprobe(inputTempFilePath, (err, metadata) => {
+				if (err) return reject(err);
+				resolve(metadata.format.duration || 0);
+			});
+		});
 
-    const outputFileName = newFileName.replace(/\.[^/.]+$/, "");
-    const outputPattern = path.join(
-      outputDir,
-      `${outputFileName}_%03d.${fileExtension}`
-    );
+		// Define paths for processing
+		const outputDir = path.join(process.cwd(), "public", "output");
+		if (!fs.existsSync(outputDir)) {
+			fs.mkdirSync(outputDir, { recursive: true });
+		}
 
-    const splitAudio = async () => {
-      return new Promise<{ segmentCount: number; segmentPaths: string[] }>(
-        (resolve, reject) => {
-          ffmpeg(inputTempFilePath)
-            .format("mp3") // Adjust format as needed
-            .outputOptions(["-f segment", "-segment_time 300", "-c copy"])
-            .output(outputPattern)
-            .on("end", () => {
-              // Get the list of segment files
-              const segmentFiles = fs
-                .readdirSync(outputDir)
-                .filter(
-                  (file) =>
-                    file.startsWith(outputFileName) &&
-                    file.endsWith(`.${fileExtension}`)
-                );
+		const outputFileName = newFileName.replace(/\.[^/.]+$/, "");
+		const outputPattern = path.join(
+			outputDir,
+			`${outputFileName}_%03d.${fileExtension}`,
+		);
 
-              // Generate paths for segment files
-              const segmentPaths = segmentFiles.map((file) =>
-                path.join(outputDir, file)
-              );
+		const splitAudio = async () => {
+			return new Promise<{ segmentCount: number; segmentPaths: string[] }>(
+				(resolve, reject) => {
+					ffmpeg(inputTempFilePath)
+						.format("mp3") // Adjust format as needed
+						.outputOptions(["-f segment", "-segment_time 60", "-c copy"])
+						.output(outputPattern)
+						.on("end", () => {
+							// Get the list of segment files
+							const segmentFiles = fs
+								.readdirSync(outputDir)
+								.filter(
+									(file) =>
+										file.startsWith(outputFileName) &&
+										file.endsWith(`.${fileExtension}`),
+								);
 
-              // Count the number of segments created
-              const segmentCount = segmentFiles.length;
+							// Generate paths for segment files
+							const segmentPaths = segmentFiles.map((file) =>
+								path.join(outputDir, file),
+							);
 
-              // Clean up the temporary file
-              fs.unlinkSync(inputTempFilePath);
+							// Count the number of segments created
+							const segmentCount = segmentFiles.length;
 
-              resolve({ segmentCount, segmentPaths });
-            })
-            .on("error", (err) => {
-              fs.unlinkSync(inputTempFilePath);
-              reject(err);
-            })
-            .run();
-        }
-      );
-    };
+							// Clean up the temporary file
+							fs.unlinkSync(inputTempFilePath);
 
-    // Use fluent-ffmpeg to process the file
-    const { segmentCount, segmentPaths } = await splitAudio();
+							resolve({ segmentCount, segmentPaths });
+						})
+						.on("error", (err) => {
+							fs.unlinkSync(inputTempFilePath);
+							reject(err);
+						})
+						.run();
+				},
+			);
+		};
 
-    // Stream response
-    const stream = new ReadableStream({
-      async start(controller) {
-        for (const segmentPath of segmentPaths) {
-          const segmentBuffer = await fs.promises.readFile(segmentPath);
-          const transcribeFile = new File([segmentBuffer], `audio.${fileExtension}`, {
-            type: mimeType,
-          });
+		// Use fluent-ffmpeg to process the file
+		const { segmentCount, segmentPaths } = await splitAudio();
 
-          try {
-            const response = await openai.audio.transcriptions.create({
-              file: transcribeFile,
-              model: "whisper-1",
-            });
+		const totalSegments = segmentPaths.length;
+		let currentSegmet = 0;
 
-            const text = response.text;
-            controller.enqueue(
-              new TextEncoder().encode(JSON.stringify({ segment: segmentPath, text }) + "\n")
-            );
+		// Stream response
+		const stream = new ReadableStream({
+			async start(controller) {
+				for (const segmentPath of segmentPaths) {
+					const segmentBuffer = await fs.promises.readFile(segmentPath);
+					const transcribeFile = new File(
+						[segmentBuffer],
+						`audio.${fileExtension}`,
+						{
+							type: mimeType,
+						},
+					);
 
-            // Delete the segment file after successful transcription
-            await fs.promises.unlink(segmentPath);
-          } catch (error) {
-            controller.enqueue(
-              new TextEncoder().encode(JSON.stringify({ error: `Failed to transcribe segment: ${segmentPath}` }) + "\n")
-            );
-          }
-        }
+					try {
+						const response = await openai.audio.transcriptions.create({
+							file: transcribeFile,
+							model: "whisper-1",
+						});
 
-        // Close the stream
-        controller.close();
-      },
-    });
+						const text = response.text;
+						const percentage = Math.round(
+							(currentSegmet / totalSegments) * 100,
+						);
+						controller.enqueue(
+							new TextEncoder().encode(
+								`${JSON.stringify({ segment: segmentPath, text, percentage })}\n`,
+							),
+						);
 
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "application/json",
-        "Transfer-Encoding": "chunked",
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      { error: "Failed to process the audio file" },
-      { status: 500 }
-    );
-  }
+						currentSegmet++;
+
+						// Delete the segment file after successful transcription
+						try {
+							await fs.promises.access(segmentPath, fs.constants.F_OK);
+							await fs.promises.unlink(segmentPath);
+						} catch (err) {
+							console.error(
+								`File does not exist or cannot be deleted: ${segmentPath}`,
+								err,
+							);
+						}
+					} catch (error) {
+						controller.enqueue(
+							new TextEncoder().encode(
+								`${JSON.stringify({
+									error: `Failed to transcribe segment: ${segmentPath}`,
+								})}\n`,
+							),
+						);
+					}
+				}
+
+				// Close the stream
+				controller.close();
+			},
+		});
+
+		return new Response(stream, {
+			headers: {
+				"Content-Type": "application/json",
+				"Transfer-Encoding": "chunked",
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return NextResponse.json(
+			{ error: "Failed to process the audio file" },
+			{ status: 500 },
+		);
+	}
 }

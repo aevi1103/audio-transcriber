@@ -1,10 +1,13 @@
 import { useChat } from "ai/react";
 import { useCallback, useEffect, useRef } from "react";
+import { FaCopy } from "react-icons/fa";
+import { useToast } from "../hooks/useToast";
 import MarkdownRenderer from "./MarkdownRenderer";
 
 export function Chat({
 	transcriptions,
 }: { transcriptions: string | undefined }) {
+	const { addToast } = useToast();
 	const { messages, input, setInput, handleInputChange, handleSubmit } =
 		useChat();
 	const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -33,9 +36,17 @@ export function Chat({
 		scrollToBottom();
 	}, [messages, scrollToBottom]);
 
+	const handleCopyToClipboard = (text: string) => {
+		if (text) {
+			navigator.clipboard.writeText(text).then(() => {
+				addToast("success", "Copied to clipboard");
+			});
+		}
+	};
+
 	return (
-		<div className="border-violet-300 h-[90vh] flex flex-col bg-gray-50 p-4 rounded shadow-md border">
-			<div className="flex-1 overflow-auto flex flex-col gap-2">
+		<div className="border-[var(--b1)] h-[90vh] flex flex-col  p-4 rounded shadow-md border">
+			<div className="flex-1 overflow-auto flex flex-col gap-5">
 				{messages.map((m) => {
 					const isUser = m.role === "user";
 
@@ -43,17 +54,31 @@ export function Chat({
 						<div
 							key={m.id}
 							className={`flex flex-col 
-                gap-2 shadow-sm rounded border p-4 
-                ${isUser ? "bg-blue-50" : "bg-violet-50"}`}
+                gap-2 shadow-lg rounded border p-4 border-${isUser ? "primary" : "secondary"}
+                ${isUser ? "bg-outline-secondary" : "bg-outline-primary"}`}
 						>
 							<div>
 								<span
 									className={`text-sm font-semibold border-2
-                    bg-violet-100 text-violet-700 border-violet-600
+                    ${isUser ? "text-primary" : "text-secondary"} border-${isUser ? "primary" : "secondary"}
                     rounded-full p-1 px-2`}
 								>
 									{m.role}
 								</span>
+
+								<div
+									className="tooltip tooltip-bottom"
+									data-tip="Copy transcription "
+								>
+									<button
+										onClick={() => handleCopyToClipboard(m.content)}
+										className="ml-2 text-gray-400 hover:text-gray-800"
+										aria-label="Copy transcription to clipboard"
+										type="button"
+									>
+										<FaCopy />
+									</button>
+								</div>
 							</div>
 
 							<div className="prose lg:prose-xl">
@@ -67,7 +92,7 @@ export function Chat({
 
 			<form onSubmit={handleSubmit} className="mt-2">
 				<input
-					className="p-2 w-full border border-gray-300 rounded shadow-xl"
+					className="input input-bordered w-full  shadow-xl"
 					value={input}
 					placeholder="Say something..."
 					onChange={handleInputChange}
