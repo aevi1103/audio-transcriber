@@ -1,18 +1,16 @@
 "use client";
 import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FaCopy } from "react-icons/fa"; // Import the copy icon
-import { set } from "zod";
-import { Chat } from "./components/Chat";
+import { FaCopy } from "react-icons/fa";
+import { v4 as uuidv4 } from "uuid";
+import { Chat, ChatMemo } from "./components/Chat";
 import { ThemeController } from "./components/ThemeController";
-import {
-	ToastContainer,
-	ToastContainerMemo,
-} from "./components/ToastContainer";
+import { ToastContainerMemo } from "./components/ToastContainer";
 import { useToast } from "./hooks/useToast";
 
 export default function Home() {
 	const [file, setFile] = useState<File | null>(null);
+	const [chatId, setChatId] = useState<string | undefined>(uuidv4());
 	const [segments, setSegments] = useState<
 		Array<{ segment: string; text: string; percentage: number }>
 	>([]);
@@ -65,7 +63,6 @@ export default function Home() {
 				}
 
 				setIsTranscribingComplete(true);
-				console.log("Final transcription segments:", segmentsData);
 			} catch (error) {
 				console.error(error);
 				throw error;
@@ -92,6 +89,8 @@ export default function Home() {
 		const formData = new FormData();
 		formData.append("file", file);
 
+		setChatId(uuidv4()); // Reset chat ID
+
 		await splitThenTranscribeAudio(formData);
 	};
 
@@ -107,7 +106,6 @@ export default function Home() {
 		const lastSegment = segments[segments.length - 1];
 		if (lastSegment) {
 			const p = lastSegment.percentage;
-			console.log("Updating percentage:", p);
 			setPercentage(p);
 		}
 	}, [segments]);
@@ -178,7 +176,7 @@ export default function Home() {
 						{transcription && (
 							<div
 								className="tooltip tooltip-bottom"
-								data-tip="Copy transcription "
+								data-tip="Copy to clipboard"
 							>
 								<button
 									onClick={handleCopyToClipboard}
@@ -196,7 +194,7 @@ export default function Home() {
 				</div>
 
 				{transcription && isTranscribingComplete && (
-					<Chat transcriptions={transcription} />
+					<ChatMemo transcriptions={transcription} chatId={chatId} />
 				)}
 			</div>
 			<ToastContainerMemo />

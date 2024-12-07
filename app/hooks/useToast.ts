@@ -44,10 +44,6 @@ export function useToast() {
 	const addToast = useToastStore((state) => state.addToast);
 	const removeToast = useToastStore((state) => state.removeToast);
 
-	useEffect(() => {
-		console.log("useToast", { toasts });
-	}, [toasts]);
-
 	return {
 		toasts,
 		addToast,

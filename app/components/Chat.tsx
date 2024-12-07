@@ -1,17 +1,20 @@
-import { richTextFromMarkdown } from "@contentful/rich-text-from-markdown";
 import { useChat } from "ai/react";
-
-import { useCallback, useEffect, useRef } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React from "react";
 import { FaCopy } from "react-icons/fa";
+import { v4 as uuidv4 } from "uuid";
 import { useToast } from "../hooks/useToast";
 import MarkdownRenderer from "./MarkdownRenderer";
 
 export function Chat({
 	transcriptions,
-}: { transcriptions: string | undefined }) {
+	chatId,
+}: { transcriptions: string | undefined; chatId: string | undefined }) {
 	const { addToast } = useToast();
 	const { messages, input, setInput, handleInputChange, handleSubmit } =
-		useChat();
+		useChat({
+			id: chatId ?? uuidv4(),
+		});
 	const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
 	const scrollToBottom = useCallback(() => {
@@ -20,18 +23,28 @@ export function Chat({
 		}
 	}, []);
 
-	useEffect(() => {
-		if (transcriptions && messages.length === 0) {
-			const contextMessage = `You are an experienced nurse. I will provide you with meeting transcription, and I need your assistance in analyzing it. Please hold off on responding until I give you further instructions.
-    Here is the data you will be analyzing, respond with markdown formatted text to the following questions: 
+	const contextMessage = useMemo(
+		() => `You are a nursing student analyzing a meeting transcription. I will provide you with the transcription data and need your help with the analysis.
+
+Please wait for further instructions before starting. Once you receive the instructions, analyze the data and respond using markdown-formatted text to the following questions:
     
       [${transcriptions}]
-      `;
+      `,
+		[transcriptions],
+	);
 
+	const handleInitialMessage = useCallback(() => {
+		if (transcriptions && messages.length === 0) {
 			setInput(contextMessage);
 			handleSubmit();
 		}
-	}, [handleSubmit, messages.length, setInput, transcriptions]);
+	}, [contextMessage, handleSubmit, messages.length, setInput, transcriptions]);
+
+	useEffect(() => {
+		console.log({ messages });
+
+		handleInitialMessage();
+	}, [handleInitialMessage, messages]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
 	useEffect(() => {
@@ -40,23 +53,6 @@ export function Chat({
 
 	const handleCopyToClipboard = async (markdownText: string) => {
 		if (markdownText) {
-			// const document = await richTextFromMarkdown(markdownText); // Convert markdown to plain text
-
-			// Function to extract plain text from rich text document
-			// const extractPlainText = (node: any): string => {
-			// 	let text = "";
-			// 	if (node.nodeType === "text") {
-			// 		text += node.value;
-			// 	} else if (node.content) {
-			// 		for (const childNode of node.content) {
-			// 			text += extractPlainText(childNode);
-			// 		}
-			// 	}
-			// 	return text;
-			// };
-
-			// const plainText = extractPlainText(document);
-
 			navigator.clipboard.writeText(markdownText).then(() => {
 				addToast("success", "Copied to clipboard");
 			});
@@ -87,12 +83,12 @@ export function Chat({
 
 								<div
 									className="tooltip tooltip-bottom"
-									data-tip="Copy transcription "
+									data-tip="Copy to clipboard"
 								>
 									<button
 										onClick={() => handleCopyToClipboard(m.content)}
 										className="ml-2 text-gray-400 hover:text-gray-800"
-										aria-label="Copy transcription to clipboard"
+										aria-label="Copy to clipboard"
 										type="button"
 									>
 										<FaCopy />
@@ -120,3 +116,5 @@ export function Chat({
 		</div>
 	);
 }
+
+export const ChatMemo = React.memo(Chat);
