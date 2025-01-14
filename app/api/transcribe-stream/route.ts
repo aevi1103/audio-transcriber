@@ -47,15 +47,7 @@ export async function POST(req: Request) {
 		);
 
 		// Write the file
-		await fs.promises.writeFile(inputTempFilePath, fileBuffer);
-
-		// Get the duration of the audio file in seconds
-		const durationSeconds = await new Promise<number>((resolve, reject) => {
-			ffmpeg.ffprobe(inputTempFilePath, (err, metadata) => {
-				if (err) return reject(err);
-				resolve(metadata.format.duration || 0);
-			});
-		});
+		await fs.promises.writeFile(inputTempFilePath, new Uint8Array(fileBuffer));
 
 		// Define paths for processing
 		const outputDir = path.join(process.cwd(), "public", "output");

@@ -1,9 +1,11 @@
 "use client";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FaCopy } from "react-icons/fa";
 import { v4 as uuidv4 } from "uuid";
-import { Chat, ChatMemo } from "./components/Chat";
+import { ChatMemo } from "./components/Chat";
 import { ThemeController } from "./components/ThemeController";
 import { ToastContainerMemo } from "./components/ToastContainer";
 import { useToast } from "./hooks/useToast";
@@ -14,8 +16,9 @@ export default function Home() {
 	const [segments, setSegments] = useState<
 		Array<{ segment: string; text: string; percentage: number }>
 	>([]);
-	const [percentage, setPercentage] = useState(0);
-	const [isTranscribingComplete, setIsTranscribingComplete] = useState(false);
+	const [transcribeStatus, setTranscribeStatus] = useState<
+		"started" | "complete" | undefined
+	>(undefined);
 	const { addToast } = useToast();
 
 	const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -26,49 +29,36 @@ export default function Home() {
 		}
 	}, []);
 
-	const {
-		mutateAsync: splitThenTranscribeAudio,
-		isPending: scriptThenTranscribeAudioLoading,
-	} = useMutation({
-		mutationFn: async (formData: FormData) => {
-			try {
-				const response = await fetch("/api/transcribe-stream", {
-					method: "POST",
-					body: formData,
-				});
+	const [loaded, setLoaded] = useState(false);
+	const ffmpegRef = useRef(new FFmpeg());
 
-				if (!response.ok) {
-					throw new Error("Failed to transcribe audio");
-				}
+	const load = useCallback(async () => {
+		const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd";
+		const ffmpeg = ffmpegRef.current;
+		ffmpeg.on("log", ({ message }) => {
+			console.log("ffmpeg", message);
+		});
+		// toBlobURL is used to bypass CORS issue, urls with the same
+		// domain can be used directly.
+		await ffmpeg.load({
+			coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+			wasmURL: await toBlobURL(
+				`${baseURL}/ffmpeg-core.wasm`,
+				"application/wasm",
+			),
+		});
 
-				const reader = response.body?.getReader();
-				const decoder = new TextDecoder("utf-8");
-				const segmentsData: Array<{
-					segment: string;
-					text: string;
-					percentage: number;
-				}> = [];
+		console.log("ffmpeg loaded");
+		setLoaded(true);
+	}, []);
 
-				setIsTranscribingComplete(false);
+	useEffect(() => {
+		const loadFFmpeg = async () => {
+			await load();
+		};
 
-				while (reader) {
-					const { done, value } = await reader.read();
-					if (done) break;
-
-					const chunk = decoder.decode(value, { stream: true });
-					const parsedChunk = JSON.parse(chunk);
-
-					segmentsData.push(parsedChunk);
-					setSegments([...segmentsData]); // Update state with new segments
-				}
-
-				setIsTranscribingComplete(true);
-			} catch (error) {
-				console.error(error);
-				throw error;
-			}
-		},
-	});
+		loadFFmpeg();
+	}, [load]);
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && e.target.files.length > 0) {
@@ -76,23 +66,97 @@ export default function Home() {
 		}
 	};
 
-	const handleSubmitSplitThenTranscribeAudio = async (e: React.FormEvent) => {
-		e.preventDefault();
+	const splitAudio = useCallback(async (file: File) => {
+		const ffmpeg = ffmpegRef.current;
+		await ffmpeg.writeFile("input.mp3", await fetchFile(file));
 
-		if (!file) {
-			alert("Please select a file first!");
-			return;
+		await ffmpeg.exec([
+			"-i",
+			"input.mp3",
+			"-f",
+			"segment",
+			"-segment_time",
+			"60",
+			"-c",
+			"copy",
+			"output%03d.mp3",
+		]);
+
+		// Collect all output files
+		const files = [];
+		let index = 0;
+		while (true) {
+			try {
+				const segment = await ffmpeg.readFile(
+					`output${String(index).padStart(3, "0")}.mp3`,
+				);
+				files.push(new Blob([segment], { type: "audio/mp3" }));
+				index++;
+			} catch (e) {
+				// Break when no more files are found
+				break;
+			}
 		}
 
-		setSegments([]); // Reset segments
+		console.log("split audios", files);
+		return files;
+	}, []);
 
-		const formData = new FormData();
-		formData.append("file", file);
+	const handleSubmitSplitThenTranscribeAudio = useCallback(
+		async (e: React.FormEvent) => {
+			e.preventDefault();
 
-		setChatId(uuidv4()); // Reset chat ID
+			if (!file) {
+				alert("Please select a file first!");
+				return;
+			}
 
-		await splitThenTranscribeAudio(formData);
-	};
+			setSegments([]); // Reset segments
+			setChatId(uuidv4()); // Reset chat ID
+
+			const audioSegments = await splitAudio(file);
+			const filesFromSegments = audioSegments.map((segment) => {
+				return new File([segment], `${uuidv4()}.mp3`, { type: "audio/mp3" });
+			});
+
+			setTranscribeStatus("started");
+			let i = 0;
+			for (const segment of filesFromSegments) {
+				const formData = new FormData();
+				formData.append("file", segment);
+
+				const response = await fetch("/api/transcribe", {
+					method: "POST",
+					body: formData,
+				});
+
+				const text = await response.json();
+
+				console.log("transcription", {
+					len: `${i}/${filesFromSegments.length}`,
+					text: text.transcription,
+				});
+
+				setSegments((prev) => {
+					return [
+						...prev,
+						{
+							segment: segment.name,
+							text: text.transcription,
+							percentage: prev.length / filesFromSegments.length,
+						},
+					];
+				});
+
+				i++;
+			}
+
+			setTranscribeStatus("complete");
+		},
+		[file, splitAudio],
+	);
+
+	const [percentage, setPercentage] = useState(0);
 
 	const transcription = useMemo(() => {
 		return segments.map((segment) => segment.text).join(" ");
@@ -105,7 +169,7 @@ export default function Home() {
 
 		const lastSegment = segments[segments.length - 1];
 		if (lastSegment) {
-			const p = lastSegment.percentage;
+			const p = lastSegment.percentage * 100;
 			setPercentage(p);
 		}
 	}, [segments]);
@@ -143,10 +207,10 @@ export default function Home() {
 
 					<button
 						type="submit"
-						disabled={!file || scriptThenTranscribeAudioLoading}
+						disabled={!file || !loaded}
 						className="btn btn-primary w-24"
 					>
-						{scriptThenTranscribeAudioLoading ? (
+						{transcribeStatus === "started" ? (
 							<span className="loading loading-dots loading-xs " />
 						) : (
 							"Transcribe"
@@ -163,12 +227,12 @@ export default function Home() {
 				</div>
 			</div>
 
-			{!isTranscribingComplete && segments.length > 0 && (
+			{transcribeStatus === "started" && segments.length > 0 && (
 				<progress className="progress w-full" value={percentage} max="100" />
 			)}
 
 			<div
-				className={`grid ${transcription && isTranscribingComplete && "grid-cols-2"} gap-5 h-[90vh]`}
+				className={`grid ${transcription && transcribeStatus && "grid-cols-2"} gap-5 h-[90vh]`}
 			>
 				<div className="prose w-full max-w-none p-4 rounded shadow-md border border-[var(--b1)] overflow-auto">
 					<h3 className="flex items-center">
@@ -193,7 +257,7 @@ export default function Home() {
 					<div ref={messagesEndRef} />
 				</div>
 
-				{transcription && isTranscribingComplete && (
+				{transcription && transcribeStatus && (
 					<ChatMemo transcriptions={transcription} chatId={chatId} />
 				)}
 			</div>
