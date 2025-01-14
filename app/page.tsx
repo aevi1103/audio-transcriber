@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FaCopy } from "react-icons/fa";
 import { v4 as uuidv4 } from "uuid";
+import NoSSRWrapper from "./NoSSRWrapper";
 import { ChatMemo } from "./components/Chat";
 import { ThemeController } from "./components/ThemeController";
 import { ToastContainerMemo } from "./components/ToastContainer";
@@ -188,80 +189,82 @@ export default function Home() {
 	};
 
 	return (
-		<main className="grid grid-rows-[max-content_1fr] gap-5 p-5 h-screen">
-			<div className="flex justify-between align-top">
-				<form
-					onSubmit={handleSubmitSplitThenTranscribeAudio}
-					className="flex h-10 align-middle"
-				>
-					<label className="flex gap-2 align-middle">
-						<input
-							type="file"
-							accept="audio/*"
-							onChange={handleFileChange}
-							placeholder="audio"
-							className="file-input w-full max-w-xs
-              "
-						/>
-					</label>
-
-					<button
-						type="submit"
-						disabled={!file || !loaded}
-						className="btn btn-primary w-24"
+		<NoSSRWrapper>
+			<main className="grid grid-rows-[max-content_1fr] gap-5 p-5 h-screen">
+				<div className="flex justify-between align-top">
+					<form
+						onSubmit={handleSubmitSplitThenTranscribeAudio}
+						className="flex h-10 align-middle"
 					>
-						{transcribeStatus === "started" ? (
-							<span className="loading loading-dots loading-xs " />
-						) : (
-							"Transcribe"
-						)}
-					</button>
-				</form>
+						<label className="flex gap-2 align-middle">
+							<input
+								type="file"
+								accept="audio/*"
+								onChange={handleFileChange}
+								placeholder="audio"
+								className="file-input w-full max-w-xs
+              "
+							/>
+						</label>
 
-				<div className="flex gap-5 items-center">
-					<div className="font-sans text-2xl font-bold">
-						Simple Audio Transcriber
+						<button
+							type="submit"
+							disabled={!file || !loaded}
+							className="btn btn-primary w-24"
+						>
+							{transcribeStatus === "started" ? (
+								<span className="loading loading-dots loading-xs " />
+							) : (
+								"Transcribe"
+							)}
+						</button>
+					</form>
+
+					<div className="flex gap-5 items-center">
+						<div className="font-sans text-2xl font-bold">
+							Simple Audio Transcriber
+						</div>
+
+						<ThemeController />
+					</div>
+				</div>
+
+				{transcribeStatus === "started" && segments.length > 0 && (
+					<progress className="progress w-full" value={percentage} max="100" />
+				)}
+
+				<div
+					className={`grid ${transcription && transcribeStatus && "grid-cols-2"} gap-5 h-[90vh]`}
+				>
+					<div className="prose w-full max-w-none p-4 rounded shadow-md border border-[var(--b1)] overflow-auto">
+						<h3 className="flex items-center">
+							Transcription:
+							{transcription && (
+								<div
+									className="tooltip tooltip-bottom"
+									data-tip="Copy to clipboard"
+								>
+									<button
+										onClick={handleCopyToClipboard}
+										className="ml-2 text-gray-400 hover:text-gray-800"
+										aria-label="Copy transcription to clipboard"
+										type="button"
+									>
+										<FaCopy />
+									</button>
+								</div>
+							)}
+						</h3>
+						<article>{transcription}</article>
+						<div ref={messagesEndRef} />
 					</div>
 
-					<ThemeController />
+					{transcription && transcribeStatus && (
+						<ChatMemo transcriptions={transcription} chatId={chatId} />
+					)}
 				</div>
-			</div>
-
-			{transcribeStatus === "started" && segments.length > 0 && (
-				<progress className="progress w-full" value={percentage} max="100" />
-			)}
-
-			<div
-				className={`grid ${transcription && transcribeStatus && "grid-cols-2"} gap-5 h-[90vh]`}
-			>
-				<div className="prose w-full max-w-none p-4 rounded shadow-md border border-[var(--b1)] overflow-auto">
-					<h3 className="flex items-center">
-						Transcription:
-						{transcription && (
-							<div
-								className="tooltip tooltip-bottom"
-								data-tip="Copy to clipboard"
-							>
-								<button
-									onClick={handleCopyToClipboard}
-									className="ml-2 text-gray-400 hover:text-gray-800"
-									aria-label="Copy transcription to clipboard"
-									type="button"
-								>
-									<FaCopy />
-								</button>
-							</div>
-						)}
-					</h3>
-					<article>{transcription}</article>
-					<div ref={messagesEndRef} />
-				</div>
-
-				{transcription && transcribeStatus && (
-					<ChatMemo transcriptions={transcription} chatId={chatId} />
-				)}
-			</div>
-			<ToastContainerMemo />
-		</main>
+				<ToastContainerMemo />
+			</main>
+		</NoSSRWrapper>
 	);
 }
