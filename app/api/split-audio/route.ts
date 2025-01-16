@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 		);
 
 		// Write the file
-		await fs.promises.writeFile(inputTempFilePath, fileBuffer);
+		await fs.promises.writeFile(inputTempFilePath, new Uint8Array(fileBuffer));
 
 		// Get the duration of the audio file in seconds
 		const durationSeconds = await new Promise<number>((resolve, reject) => {
