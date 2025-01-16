@@ -20,7 +20,7 @@ export const ThemeController = () => {
 			</svg>
 			<input
 				type="checkbox"
-				value="night"
+				value="synthwave"
 				className="toggle theme-controller"
 			/>
 			{/* biome-ignore lint/a11y/noSvgWithoutTitle: <explanation> */}
