@@ -21,7 +21,7 @@ export default function Home() {
 	);
 
 	return (
-		<main className="container md:mx-auto p-3 min-h-screen">
+		<main className="md:container md:mx-auto p-3 min-h-screen">
 			<Header />
 
 			<div className="grid gap-2 mt-4 md:mt-5 lg:mt-10 ">
