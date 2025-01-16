@@ -52,9 +52,7 @@ export const AudioFileUploadForm = ({
 				className="btn btn-primary btn-sm lg:btn-lg"
 			>
 				{status === "started" ? (
-					<span className="text-xs font-normal">
-						{percentage}% Transcribing...
-					</span>
+					<span>{percentage}% Transcribing...</span>
 				) : (
 					"Transcribe"
 				)}

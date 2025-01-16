@@ -59,7 +59,7 @@ export const useTranscribeAudioSegments = () => {
 
 		const lastSegment = segments[segments.length - 1];
 		if (lastSegment) {
-			const p = lastSegment.percentage * 100;
+			const p = Math.round(lastSegment.percentage * 100);
 			setPercentage(p);
 		}
 	}, [segments]);
